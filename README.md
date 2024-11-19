@@ -15,7 +15,7 @@ QuickLaunch is a streamlined CLI tool for deploying Node.js applications to remo
 ## Installation
 
 ```
-npm install -g @weirdsience/quicklaunch
+npm install -g @weirdscience/quicklaunch
 ```
 
 ## Prerequisites
