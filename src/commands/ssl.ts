@@ -16,7 +16,12 @@ const setupSSL = async () => {
 	}
 
 	const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-	const { host, user, domain } = config;
+	const { host, user, domain, email } = config;
+
+	if (!email) {
+		consola.error("Email is required in .deployrc.json configuration.");
+		return;
+	}
 
 	const spinner = ora({
 		text: `Setting up SSL for domain: ${domain}...`,
@@ -52,7 +57,7 @@ const setupSSL = async () => {
 			"sudo certbot --nginx",
 			"--non-interactive",
 			"--agree-tos",
-			"--email mchlrmn@me.com",
+			`--email ${email}`,
 			`-d ${domain}`,
 			"--redirect",
 		].join(" ");

@@ -10,6 +10,7 @@ interface DeployConfig {
 	domain?: string;
 	port: number;
 	appName: string;
+	email: string;
 }
 
 const init = async () => {
@@ -54,6 +55,16 @@ const init = async () => {
 				value.trim() !== "" || "Application name is required.",
 		});
 
+		const email = await input({
+			message: "Enter your email (for SSL certificates):",
+			validate: (value) => {
+				if (value.trim() === "") return "Email is required.";
+
+				const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+				return emailRegex.test(value) || "Please enter a valid email address.";
+			},
+		});
+
 		const confirmSave = await confirm({
 			message: "Save this configuration?",
 			default: true,
@@ -71,6 +82,7 @@ const init = async () => {
 			domain: domain || undefined,
 			port: Number(port),
 			appName,
+			email,
 		};
 
 		const configPath = path.resolve(process.cwd(), ".deployrc.json");
