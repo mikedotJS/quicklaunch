@@ -1,6 +1,6 @@
 {
 	"name": "@weirdscience/quicklaunch",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"main": "dist/cli.js",
 	"scripts": {
 		"start": "vite-node src/cli.ts",
