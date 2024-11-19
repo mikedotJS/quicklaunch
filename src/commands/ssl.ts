@@ -51,9 +51,38 @@ const setupSSL = async () => {
 		);
 		spinner.succeed("Certbot installed.");
 
-		spinner.start(`Generating SSL certificate for ${domain}...`);
+		spinner.start(`Checking SSL certificate status for ${domain}...`);
+		const { stdout: sslExists } = await ssh.execCommand(
+			`test -d /etc/letsencrypt/live/${domain} && echo "yes" || echo "no"`,
+		);
 
-		const certbotCommand = [
+		if (sslExists.trim() === "no") {
+			spinner.start("Stopping Nginx for initial certificate generation...");
+			await ssh.execCommand("sudo systemctl stop nginx");
+
+			spinner.start(`Generating initial SSL certificate for ${domain}...`);
+			const initialCertCommand = [
+				"sudo certbot certonly",
+				"--standalone",
+				"--non-interactive",
+				"--agree-tos",
+				`--email ${email}`,
+				`-d ${domain}`,
+			].join(" ");
+
+			const certResult = await ssh.execCommand(initialCertCommand);
+			if (certResult.code !== 0) {
+				throw new Error(
+					`Certbot error: ${certResult.stderr || certResult.stdout}`,
+				);
+			}
+			spinner.succeed("Initial SSL certificate generated.");
+
+			await ssh.execCommand("sudo systemctl start nginx");
+		}
+
+		spinner.start(`Configuring SSL with Nginx for ${domain}...`);
+		const nginxCommand = [
 			"sudo certbot --nginx",
 			"--non-interactive",
 			"--agree-tos",
@@ -62,18 +91,13 @@ const setupSSL = async () => {
 			"--redirect",
 		].join(" ");
 
-		const certbotResult = await ssh.execCommand(certbotCommand);
-
-		if (certbotResult.code !== 0) {
+		const nginxResult = await ssh.execCommand(nginxCommand);
+		if (nginxResult.code !== 0) {
 			throw new Error(
-				`Certbot error: ${certbotResult.stderr || certbotResult.stdout}`,
+				`Certbot error: ${nginxResult.stderr || nginxResult.stdout}`,
 			);
 		}
-		spinner.succeed(`SSL certificate generated for ${domain}.`);
-
-		spinner.start("Restarting Nginx...");
-		await ssh.execCommand("sudo systemctl restart nginx");
-		spinner.succeed("Nginx restarted with SSL configuration.");
+		spinner.succeed("SSL configured with Nginx.");
 
 		consola.success(`SSL setup completed successfully for ${domain}!`);
 	} catch (err) {

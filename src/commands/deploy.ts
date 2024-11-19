@@ -87,24 +87,47 @@ const deploy = async () => {
 
 		if (domain) {
 			spinner.start(`Configuring Nginx for domain: ${domain}...`);
+			const { stdout: sslExists } = await ssh.execCommand(
+				`sudo test -d "/etc/letsencrypt/live/${domain}" || sudo test -d "/etc/letsencrypt/renewal/${domain}" && echo "yes" || echo "no"`,
+			);
+
+			const { stdout: certLocation } = await ssh.execCommand(`
+				if sudo test -d "/etc/letsencrypt/live/${domain}"; then 
+					echo "live"
+				elif sudo test -d "/etc/letsencrypt/renewal/${domain}"; then 
+					echo "renewal"
+				else 
+					echo "none"
+				fi
+			`);
+
+			const certPath =
+				certLocation.trim() === "live"
+					? `/etc/letsencrypt/live/${domain}`
+					: `/etc/letsencrypt/renewal/${domain}`;
+
 			const nginxConfig = `server {
-        server_name ${domain};
-        location / {
-            proxy_pass http://localhost:${port};
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade \\$http_upgrade;
-            proxy_set_header Connection 'upgrade';
-            proxy_set_header Host \\$host;
-            proxy_cache_bypass \\$http_upgrade;
-        }
-        listen 80;
-        listen 443 ssl;  # Added SSL listening
-        
-        # Include SSL configuration if exists
-        include /etc/letsencrypt/options-ssl-nginx.conf;
-        ssl_certificate /etc/letsencrypt/live/${domain}/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/${domain}/privkey.pem;
-    }`;
+				server_name ${domain};
+				location / {
+					proxy_pass http://localhost:${port};
+					proxy_http_version 1.1;
+					proxy_set_header Upgrade \\$http_upgrade;
+					proxy_set_header Connection 'upgrade';
+					proxy_set_header Host \\$host;
+					proxy_cache_bypass \\$http_upgrade;
+				}
+				listen 80;
+				${
+					sslExists.trim() === "yes"
+						? `
+				listen 443 ssl;
+				include /etc/letsencrypt/options-ssl-nginx.conf;
+ 				ssl_certificate ${certPath}/fullchain.pem;
+    			ssl_certificate_key ${certPath}/privkey.pem;
+				`
+						: ""
+				}
+			}`;
 
 			const nginxPath = `/etc/nginx/sites-available/${domain}`;
 			const nginxSymlink = `/etc/nginx/sites-enabled/${domain}`;
