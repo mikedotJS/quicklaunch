@@ -1,15 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
 import { NodeSSH } from "node-ssh";
+import consola from "consola";
 
 const ssh = new NodeSSH();
 
 const deploy = async () => {
-	console.log("Starting deployment process... 🚀");
+	consola.start("Starting deployment process... 🚀");
 
 	const configPath = path.resolve(process.cwd(), ".deployrc.json");
 	if (!fs.existsSync(configPath)) {
-		console.error(
+		consola.error(
 			"Configuration file not found. Please run `quicklaunch init` first.",
 		);
 		return;
@@ -19,15 +20,13 @@ const deploy = async () => {
 	const { host, user, path: deploymentPath, port, domain } = config;
 
 	try {
-		console.log("Connecting to the server...");
+		consola.info("Connecting to the server...");
 		const privateKeyPath = path.resolve(process.env.HOME || "~", ".ssh/id_rsa");
 
-		// Verify the key exists before attempting to use it
 		if (!fs.existsSync(privateKeyPath)) {
 			throw new Error(`SSH private key not found at ${privateKeyPath}`);
 		}
 
-		// Read the private key with proper error handling
 		const privateKey = fs.readFileSync(privateKeyPath, "utf8");
 
 		await ssh.connect({
@@ -48,35 +47,35 @@ const deploy = async () => {
 				}
 			},
 		});
-		console.log("Connected successfully.");
+		consola.success("Connected successfully.");
 
-		console.log(
+		consola.info(
 			`Ensuring the deployment directory exists at ${deploymentPath}...`,
 		);
 		await ssh.execCommand(`mkdir -p ${deploymentPath}`);
-		console.log("Deployment directory is ready.");
+		consola.success("Deployment directory is ready.");
 
-		console.log("Uploading project files...");
+		consola.info("Uploading project files...");
 		await ssh.putDirectory("./", deploymentPath, {
 			recursive: true,
 			concurrency: 10,
 			validate: (itemPath) => !itemPath.includes("node_modules"),
 		});
-		console.log("Files uploaded successfully.");
+		consola.success("Files uploaded successfully.");
 
-		console.log("Installing dependencies...");
+		consola.info("Installing dependencies...");
 		await ssh.execCommand("npm install", { cwd: deploymentPath });
-		console.log("Dependencies installed.");
+		consola.success("Dependencies installed.");
 
-		console.log("Starting the application...");
+		consola.info("Starting the application...");
 		const pm2Command = `pm2 start npm --name ${
 			config.appName || "my-app"
 		} --watch -- start`;
 		await ssh.execCommand(pm2Command, { cwd: deploymentPath });
-		console.log("Application started successfully.");
+		consola.success("Application started successfully.");
 
 		if (domain) {
-			console.log(`Configuring Nginx for domain: ${domain}...`);
+			consola.info(`Configuring Nginx for domain: ${domain}...`);
 			const nginxConfig = `
 server {
     server_name ${domain};
@@ -98,12 +97,12 @@ server {
 			await ssh.execCommand(`echo '${nginxConfig}' > ${nginxPath}`);
 			await ssh.execCommand(`ln -s ${nginxPath} ${nginxSymlink}`);
 			await ssh.execCommand("nginx -t && systemctl reload nginx");
-			console.log("Nginx configuration applied successfully.");
+			consola.success("Nginx configuration applied successfully.");
 		}
 
-		console.log("Deployment completed successfully! 🎉");
+		consola.success("Deployment completed successfully! 🎉");
 	} catch (err) {
-		console.error("Deployment failed:", err);
+		consola.error("Deployment failed:", err);
 	} finally {
 		ssh.dispose();
 	}

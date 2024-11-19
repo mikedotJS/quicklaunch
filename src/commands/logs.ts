@@ -1,11 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { NodeSSH } from "node-ssh";
+import consola from "consola";
 
 const ssh = new NodeSSH();
 
 const logs = async () => {
-	console.log("Starting log retrieval process...");
+	consola.start("Starting log retrieval process...");
 
 	const configPath: string = path.resolve(process.cwd(), ".deployrc.json");
 	let config: Record<string, string>;
@@ -16,7 +17,7 @@ const logs = async () => {
 
 		config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 	} catch (err) {
-		console.error(
+		consola.error(
 			`Configuration file not found. Please run "quicklaunch init" first.`,
 		);
 		return;
@@ -25,7 +26,7 @@ const logs = async () => {
 	const { host, user } = config;
 
 	try {
-		console.log("Connecting to the server...");
+		consola.info("Connecting to the server...");
 		const privateKeyPath = path.resolve(process.env.HOME || "~", ".ssh/id_rsa");
 
 		if (!fs.existsSync(privateKeyPath)) {
@@ -53,14 +54,14 @@ const logs = async () => {
 			},
 		});
 
-		console.log("Connected successfully.");
+		consola.success("Connected successfully.");
 
-		console.log("Retrieving logs...");
+		consola.info("Retrieving logs...");
 		const appName = config.appName || "my-app";
 
 		const checkApp = await ssh.execCommand(`pm2 id ${appName}`);
 		if (checkApp.stderr || !checkApp.stdout) {
-			console.error(`App ${appName} not found in PM2 processes`);
+			consola.error(`App ${appName} not found in PM2 processes`);
 			return;
 		}
 
@@ -76,9 +77,9 @@ const logs = async () => {
 		});
 	} catch (err: unknown) {
 		if (err instanceof Error) {
-			console.error(`Failed to retrieve logs: ${err.message}`);
+			consola.error(`Failed to retrieve logs: ${err.message}`);
 		} else {
-			console.error("Failed to retrieve logs: An unknown error occurred.");
+			consola.error("Failed to retrieve logs: An unknown error occurred.");
 		}
 	} finally {
 		ssh.dispose();
