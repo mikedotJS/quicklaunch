@@ -2,11 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { NodeSSH } from "node-ssh";
 import consola from "consola";
+import ora from "ora";
 
 const ssh = new NodeSSH();
 
 const deploy = async () => {
-	consola.start("Starting deployment process... 🚀");
+	const spinner = ora({
+		text: "Starting deployment process... 🚀",
+		color: "blue",
+	}).start();
 
 	const configPath = path.resolve(process.cwd(), ".deployrc.json");
 	if (!fs.existsSync(configPath)) {
@@ -20,7 +24,7 @@ const deploy = async () => {
 	const { host, user, path: deploymentPath, port, domain } = config;
 
 	try {
-		consola.info("Connecting to the server...");
+		spinner.start("Connecting to the server...");
 		const privateKeyPath = path.resolve(process.env.HOME || "~", ".ssh/id_rsa");
 
 		if (!fs.existsSync(privateKeyPath)) {
@@ -47,60 +51,114 @@ const deploy = async () => {
 				}
 			},
 		});
-		consola.success("Connected successfully.");
+		spinner.succeed("Connected successfully.");
 
-		consola.info(
+		spinner.start(
 			`Ensuring the deployment directory exists at ${deploymentPath}...`,
 		);
 		await ssh.execCommand(`mkdir -p ${deploymentPath}`);
-		consola.success("Deployment directory is ready.");
+		spinner.succeed("Deployment directory is ready.");
 
-		consola.info("Uploading project files...");
+		spinner.start("Uploading project files...");
 		await ssh.putDirectory("./", deploymentPath, {
 			recursive: true,
 			concurrency: 10,
 			validate: (itemPath) => !itemPath.includes("node_modules"),
 		});
-		consola.success("Files uploaded successfully.");
+		spinner.succeed("Files uploaded successfully.");
 
-		consola.info("Installing dependencies...");
+		spinner.start("Installing dependencies...");
+
 		await ssh.execCommand("npm install", { cwd: deploymentPath });
-		consola.success("Dependencies installed.");
 
-		consola.info("Starting the application...");
-		const pm2Command = `pm2 start npm --name ${
-			config.appName || "my-app"
-		} --watch -- start`;
+		spinner.succeed("Dependencies installed.");
+
+		spinner.start("Starting the application...");
+		const appName = config.appName || "my-app";
+		const { stdout } = await ssh.execCommand(`pm2 id ${appName}`);
+
+		const pm2Command =
+			stdout === "[]"
+				? `pm2 start npm --name ${appName} --watch -- start`
+				: `pm2 restart ${appName}`;
+
 		await ssh.execCommand(pm2Command, { cwd: deploymentPath });
-		consola.success("Application started successfully.");
+		spinner.succeed("Application started/restarted successfully.");
 
 		if (domain) {
-			consola.info(`Configuring Nginx for domain: ${domain}...`);
-			const nginxConfig = `
-server {
-    server_name ${domain};
-    location / {
-        proxy_pass http://localhost:${port};
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-    listen 80;
-}
-      `;
+			spinner.start(`Configuring Nginx for domain: ${domain}...`);
+			const nginxConfig = `server {
+        server_name ${domain};
+        location / {
+            proxy_pass http://localhost:${port};
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade \\$http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host \\$host;
+            proxy_cache_bypass \\$http_upgrade;
+        }
+        listen 80;
+        listen 443 ssl;  # Added SSL listening
+        
+        # Include SSL configuration if exists
+        include /etc/letsencrypt/options-ssl-nginx.conf;
+        ssl_certificate /etc/letsencrypt/live/${domain}/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/${domain}/privkey.pem;
+    }`;
 
 			const nginxPath = `/etc/nginx/sites-available/${domain}`;
 			const nginxSymlink = `/etc/nginx/sites-enabled/${domain}`;
 
-			await ssh.execCommand(`echo '${nginxConfig}' > ${nginxPath}`);
-			await ssh.execCommand(`ln -s ${nginxPath} ${nginxSymlink}`);
-			await ssh.execCommand("nginx -t && systemctl reload nginx");
-			consola.success("Nginx configuration applied successfully.");
+			try {
+				const { stdout: existingConfig } = await ssh.execCommand(
+					`sudo cat ${nginxPath} 2>/dev/null || echo ""`,
+				);
+
+				if (existingConfig && existingConfig.trim() === nginxConfig.trim()) {
+					spinner.info("Nginx configuration unchanged, reloading service...");
+					const reloadResult = await ssh.execCommand(
+						"sudo systemctl reload nginx",
+					);
+					if (reloadResult.code !== 0) {
+						throw new Error(`Failed to reload Nginx: ${reloadResult.stderr}`);
+					}
+				} else {
+					const nginxConfigResult = await ssh.execCommand(
+						`sudo tee ${nginxPath} > /dev/null`,
+						{ stdin: nginxConfig },
+					);
+					if (nginxConfigResult.code !== 0) {
+						throw new Error(
+							`Failed to write Nginx config: ${nginxConfigResult.stderr}`,
+						);
+					}
+
+					const symlinkResult = await ssh.execCommand(
+						`sudo ln -sf ${nginxPath} ${nginxSymlink}`,
+					);
+					if (symlinkResult.code !== 0) {
+						throw new Error(
+							`Failed to create symlink: ${symlinkResult.stderr}`,
+						);
+					}
+
+					const nginxReloadResult = await ssh.execCommand(
+						"sudo nginx -t && sudo systemctl reload nginx",
+					);
+					if (nginxReloadResult.code !== 0) {
+						throw new Error(
+							`Failed to reload Nginx: ${nginxReloadResult.stderr}`,
+						);
+					}
+				}
+			} catch (error) {
+				spinner.fail("Failed to apply Nginx configuration.");
+				throw error;
+			}
+			spinner.succeed("Nginx configuration applied successfully.");
 		}
 
-		consola.success("Deployment completed successfully! 🎉");
+		spinner.succeed("Deployment completed successfully! 🎉");
 	} catch (err) {
 		consola.error("Deployment failed:", err);
 	} finally {

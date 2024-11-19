@@ -2,7 +2,13 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
 	optimizeDeps: {
-		// Pre-bundle dependencies for faster startup
-		include: ["commander", "node-ssh", "dotenv", "inquirer"],
+		include: [
+			"commander",
+			"node-ssh",
+			"@inquirer/prompts",
+			"cli-progress",
+			"consola",
+			"ora",
+		],
 	},
 });

@@ -1,12 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import { NodeSSH } from "node-ssh";
-import consola from "consola";
+import ora from "ora";
 
 const ssh = new NodeSSH();
 
 const logs = async () => {
-	consola.start("Starting log retrieval process...");
+	const spinner = ora({
+		text: "Starting log retrieval process...",
+		color: "blue",
+	}).start();
 
 	const configPath: string = path.resolve(process.cwd(), ".deployrc.json");
 	let config: Record<string, string>;
@@ -17,7 +20,7 @@ const logs = async () => {
 
 		config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 	} catch (err) {
-		consola.error(
+		spinner.fail(
 			`Configuration file not found. Please run "quicklaunch init" first.`,
 		);
 		return;
@@ -26,7 +29,7 @@ const logs = async () => {
 	const { host, user } = config;
 
 	try {
-		consola.info("Connecting to the server...");
+		spinner.start("Connecting to the server...");
 		const privateKeyPath = path.resolve(process.env.HOME || "~", ".ssh/id_rsa");
 
 		if (!fs.existsSync(privateKeyPath)) {
@@ -54,18 +57,20 @@ const logs = async () => {
 			},
 		});
 
-		consola.success("Connected successfully.");
+		spinner.succeed("Connected successfully.");
 
-		consola.info("Retrieving logs...");
+		spinner.start("Retrieving logs...");
 		const appName = config.appName || "my-app";
 
 		const checkApp = await ssh.execCommand(`pm2 id ${appName}`);
 		if (checkApp.stderr || !checkApp.stdout) {
-			consola.error(`App ${appName} not found in PM2 processes`);
+			spinner.fail(`App ${appName} not found in PM2 processes`);
 			return;
 		}
 
 		await new Promise(() => {
+			spinner.succeed("Logs retrieved successfully.");
+
 			ssh.exec("pm2", ["logs", appName, "--raw"], {
 				onStdout: (chunk) => {
 					process.stdout.write(chunk.toString("utf8"));
@@ -77,9 +82,9 @@ const logs = async () => {
 		});
 	} catch (err: unknown) {
 		if (err instanceof Error) {
-			consola.error(`Failed to retrieve logs: ${err.message}`);
+			spinner.fail(`Failed to retrieve logs: ${err.message}`);
 		} else {
-			consola.error("Failed to retrieve logs: An unknown error occurred.");
+			spinner.fail("Failed to retrieve logs: An unknown error occurred.");
 		}
 	} finally {
 		ssh.dispose();

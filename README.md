@@ -8,8 +8,9 @@ QuickLaunch is a streamlined CLI tool for deploying Node.js applications to remo
 - 📦 Automated deployment process
 - 🔄 PM2 process management
 - 🌐 Nginx configuration for domains
+- 🔒 SSL certificate automation
 - 📊 Real-time log viewing
-- 🔒 Secure SSH key authentication
+- 🔐 Secure SSH key authentication
 
 ## Installation
 
@@ -58,6 +59,20 @@ This command:
 5. Starts your application with PM2
 6. Configures Nginx (if domain is specified)
 
+### Set Up SSL Certificate
+
+Secure your domain with a free Let's Encrypt SSL certificate:
+
+```
+quicklaunch ssl
+```
+
+This command:
+1. Installs Certbot if not present
+2. Generates SSL certificates for your domain
+3. Configures Nginx with SSL settings
+4. Sets up automatic HTTPS redirection
+
 ### View Application Logs
 
 Monitor your application logs in real-time:
@@ -76,7 +91,8 @@ QuickLaunch stores its configuration in `.deployrc.json` in your project root. E
   "user": "root",
   "path": "/var/www/app",
   "domain": "yourdomain.com",
-  "port": 3000
+  "port": 3000,
+  "appName": "myapp"
 }
 ```
 
