@@ -1,0 +1,33 @@
+{
+	"name": "@weirdsience/quicklaunch",
+	"version": "0.1.0",
+	"main": "dist/cli.js",
+	"scripts": {
+		"start": "vite-node src/cli.ts",
+		"build": "esbuild src/cli.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/cli.js --minify --sourcemap --external:ssh2 --external:cpu-features && echo '#!/usr/bin/env node' | cat - dist/cli.js > temp && mv temp dist/cli.js && chmod +x dist/cli.js",
+		"dev": "vite-node --watch src/cli.ts",
+		"prepare": "npm run build",
+		"format": "biome format --write .",
+		"lint": "biome lint .",
+		"check": "biome check --write ."
+	},
+	"bin": {
+		"quicklaunch": "./dist/cli.js"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"description": "",
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"esbuild": "^0.24.0",
+		"typescript": "^5.6.3",
+		"vite": "^5.4.11",
+		"vite-node": "^2.1.5"
+	},
+	"dependencies": {
+		"@inquirer/prompts": "^7.1.0",
+		"commander": "^12.1.0",
+		"node-ssh": "^13.2.0"
+	}
+}
