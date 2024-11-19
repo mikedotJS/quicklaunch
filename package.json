@@ -1,6 +1,6 @@
 {
 	"name": "@weirdscience/quicklaunch",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"main": "dist/cli.js",
 	"scripts": {
 		"start": "vite-node src/cli.ts",
@@ -15,10 +15,23 @@
 	"bin": {
 		"quicklaunch": "./dist/cli.js"
 	},
-	"keywords": [],
-	"author": "",
-	"license": "ISC",
-	"description": "",
+	"keywords": [
+		"deployment",
+		"cli",
+		"nodejs",
+		"ssh",
+		"devops",
+		"automation",
+		"pm2",
+		"nginx",
+		"ssl",
+		"lets-encrypt",
+		"server-management",
+		"continuous-deployment"
+	],
+	"author": "Mike Romain",
+	"license": "MIT",
+	"description": "A streamlined CLI tool for deploying Node.js applications to remote servers with automated SSH, PM2, Nginx, and SSL configuration.",
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
 		"@types/cli-progress": "^3.11.6",
